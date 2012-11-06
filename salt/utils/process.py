@@ -2,6 +2,7 @@ import logging
 import os
 import signal
 import time
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -29,15 +30,17 @@ def set_pidfile(pidfile, user):
         uid = pwnam[2]
         gid = pwnam[3]
         groups = [g.gr_gid for g in grp.getgrall() if user in g.gr_mem]
-    except KeyError:
+    except IndexError:
         err = ('Failed to set the pid to user: '
                 '{0}. The user is not available.\n').format(user)
         sys.stderr.write(err)
         sys.exit(2)
     try:
         os.chown(pidfile, uid, gid)
-    except Error as e:
-        msg = ('Failed to set the pid to user {0}').format(ser)
+    except OSError as e:
+        msg = ('Failed to set the ownership of PID file {0} '
+               'to user {1}\n').format(pidfile, user)
+        log.debug(msg, exc_info=True)
         sys.stderr.write(msg)
         sys.exit(e.errno)
     log.debug(('Chowned pidfile: {0} to user: {1}').format(pidfile, user))

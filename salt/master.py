@@ -560,7 +560,7 @@ class AESFuncs(object):
         pub = None
         try:
             pub = RSA.load_pub_key(tmp_pub)
-        except RSA.RSAError, e:
+        except RSA.RSAError as e:
             log.error('Unable to load temporary public key "{0}": {1}'
                       .format(tmp_pub, e))
         try:
@@ -780,7 +780,7 @@ class AESFuncs(object):
                     self.opts['hash_type'])
         log.info('Got return from {id} for job {jid}'.format(**load))
         self.event.fire_event(load, load['jid'])
-        if not self.opts['job_cache']:
+        if not self.opts['job_cache'] or self.opts.get('ext_job_cache'):
             return
         jid_dir = salt.utils.jid_dir(
                 load['jid'],
@@ -1551,25 +1551,26 @@ class ClearFuncs(object):
         # Verify that the caller has root on master
         elif 'user' in clear_load:
             if clear_load['user'].startswith('sudo_'):
-                if not clear_load.pop('key') == self.key.get(getpass.getuser(), ''):
+                if not clear_load.pop('key') == self.key[self.opts.get('user', 'root')]:
                     return ''
             elif clear_load['user'] == self.opts.get('user', 'root'):
                 if not clear_load.pop('key') == self.key[self.opts.get('user', 'root')]:
                     return ''
-            elif clear_load['user'] == getpass.getuser():
-                if not clear_load.pop('key') == self.key.get(getpass.getuser()):
-                    return ''
             elif clear_load['user'] == 'root':
                 if not clear_load.pop('key') == self.key.get(self.opts.get('user', 'root')):
+                    return ''
+            elif clear_load['user'] == getpass.getuser():
+                if not clear_load.pop('key') == self.key.get(clear_load['user']):
                     return ''
             else:
                 if clear_load['user'] in self.key:
                     # User is authorised, check key and check perms
                     if not clear_load.pop('key') == self.key[clear_load['user']]:
                         return ''
-                    good = False
+                    if not clear_load['user'] in self.opts['client_acl']:
+                        return ''
                     good = self.ckminions.auth_check(
-                            self.opts['client_acl'],
+                            self.opts['client_acl'][clear_load['user']],
                             clear_load['fun'],
                             clear_load['tgt'],
                             clear_load.get('tgt_type', 'glob'))
@@ -1641,7 +1642,10 @@ class ClearFuncs(object):
             )
         pub_sock.connect(pull_uri)
         pub_sock.send(self.serial.dumps(payload))
-        minions = self.ckminions.check_minions(load['tgt'], load.get('tgt_type', 'glob'))
+        minions = self.ckminions.check_minions(
+                load['tgt'],
+                load.get('tgt_type', 'glob')
+                )
         return {'enc': 'clear',
                 'load': {'jid': clear_load['jid'],
                          'minions': minions}}

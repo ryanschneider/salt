@@ -14,14 +14,17 @@ might look like::
 This data can also be passed into pillar. Options passed into opts will
 overwrite options passed into pillar
 '''
+
+# Import Python libs
 import pipes
 import logging
+
+# Import Salt libs
 from salt.utils import check_or_die
 from salt.exceptions import CommandNotFoundError
 
-
 log = logging.getLogger(__name__)
-__opts__ = {}
+
 
 def __virtual__():
     '''
@@ -54,11 +57,11 @@ def _connection_defaults(user=None, host=None, port=None):
     values assigned to missing values.
     '''
     if not user:
-        user = __opts__.get('postgres.user') or __pillar__.get('postgres.user')
+        user = __salt__['config.option']('postgres.user')
     if not host:
-        host = __opts__.get('postgres.host') or __pillar__.get('postgres.host')
+        host = __salt__['config.option']('postgres.host')
     if not port:
-        port = __opts__.get('postgres.port') or __pillar__.get('postgres.port')
+        port = __salt__['config.option']('postgres.port')
 
     return (user, host, port)
 
@@ -73,11 +76,11 @@ def _psql_cmd(*args, **kwargs):
                                               kwargs.get('host'),
                                               kwargs.get('port'))
     cmd = ['psql', '--no-align', '--no-readline', '--no-password']
-    if user is not None:
+    if user:
         cmd += ['--username', user]
-    if host is not None:
+    if host:
         cmd += ['--host', host]
-    if port is not None:
+    if port:
         cmd += ['--port', port]
     cmd += args
     cmdstr = ' '.join(map(pipes.quote, cmd))

@@ -100,7 +100,7 @@ def _interfaces_ip(out):
         iface = None
         data = dict()
 
-        for line in group.split('\n'):
+        for line in group.splitlines():
             if not ' ' in line:
                 continue
             m = re.match('^\d*:\s+([\w.]+)(?:@)?(\w+)?:\s+<(.+)>', line)
@@ -179,7 +179,7 @@ def _interfaces_ifconfig(out):
         data = dict()
         iface = ''
         updown = False
-        for line in group.split('\n'):
+        for line in group.splitlines():
             miface = piface.match(line)
             mmac = pmac.match(line)
             mip = pip.match(line)
@@ -233,8 +233,9 @@ def interfaces():
     '''
     ifaces = dict()
     if __salt__['cmd.has_exec']('ip'):
-        cmd = __salt__['cmd.run']('ip addr show')
-        ifaces = _interfaces_ip(cmd)
+        cmd1 = __salt__['cmd.run']('ip link show')
+        cmd2 = __salt__['cmd.run']('ip addr show')
+        ifaces = _interfaces_ip(cmd1 + cmd2)
     elif __salt__['cmd.has_exec']('ifconfig'):
         cmd = __salt__['cmd.run']('ifconfig -a')
         ifaces = _interfaces_ifconfig(cmd)
@@ -366,7 +367,7 @@ def netstat():
     '''
     ret = []
     cmd = 'netstat -tulpnea'
-    out = __salt__['cmd.run'](cmd).split('\n')
+    out = __salt__['cmd.run'](cmd).splitlines()
     for line in out:
         comps = line.split()
         if line.startswith('tcp'):
