@@ -276,10 +276,12 @@
 # X509 Certificate Support.  This allows clients to provide an x509
 # certificate to the master, which the master can then use to auto-accept
 # the clients.
-#   client_cert: path to the minions client certificate
+#   x509.client_cert: path to the minion's client certificate
+#   x509.client_cert_key: path to the minion's client certificate key file
 # Example:
 # x509:
 #   client_cert: /path/to/minion/cert/minion.crt
+#   client_cert_key: /path/to/minion/cert_key/minion.key
 
 
 ######         Thread settings        #####

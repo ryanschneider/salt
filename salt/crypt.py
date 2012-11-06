@@ -22,6 +22,7 @@ import salt.utils
 import salt.payload
 import salt.utils.verify
 from salt.exceptions import AuthenticationError, SaltClientError, SaltReqTimeoutError
+import salt.tls_handshake
 
 log = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ class X509CertificateAuth(object):
                 )
 
 
-    def verify_client_cert(self, client_cert_text):
+    def verify_client_cert(self, client_cert_text, client_encrypted_token=None):
         '''
         Returns True if the client certificate is valid and passes any issuer
         or subject constraints.
@@ -152,6 +153,13 @@ class X509CertificateAuth(object):
                client_cert.get_subject().as_text()):
             log.error('Client certificate\'s Subject did not match')
             return False
+        if client_encrypted_token:
+            log.debug('Checking minion x509 token...')
+            clear_token = client_cert.get_pubkey().get_rsa().public_decrypt(client_encrypted_token, 5)
+            if clear_token != 'salty cert':
+                log.error('Minion token did not match')
+                return False
+
         log.debug('Client certificate verified')
         return True
 
@@ -226,6 +234,11 @@ class Auth(object):
         Returns a key objects for the minion
         '''
         key = None
+
+        if 'tls' in self.opts:
+            key = X509.load_cert(self.opts['tls']['minion_cert']).get_pubkey().get_rsa()
+            return key
+
         # Make sure all key parent directories are accessible
         user = self.opts.get('user', 'root')
         salt.utils.verify.check_parent_dirs(self.rsa_path, user)
@@ -265,10 +278,15 @@ class Auth(object):
         except Exception:
             pass
         if 'x509' in self.opts:
-            log.info('Sending client\'s x509 certificate.')
+            log.info('Sending minion x509 certificate.')
             with open(self.opts['x509']['client_cert'], 'r') as fp_:
                 payload['load']['x509'] = {}
                 payload['load']['x509']['client_cert'] = fp_.read()
+            if 'client_cert_key'  in self.opts['x509']:
+                log.info('Sending client x509 token.')
+                key = RSA.load_key( self.opts['x509']['client_cert_key'] )
+                encrypted_token = key.private_encrypt('salty cert', 5)
+                payload['load']['x509']['token'] = encrypted_token
         with open(tmp_pub, 'r') as fp_:
             payload['load']['pub'] = fp_.read()
         os.remove(tmp_pub)
@@ -344,6 +362,14 @@ class Auth(object):
                 self.opts['master_uri'],
                 self.opts.get('id', '')
                 )
+
+        if 'tls' in self.opts:
+            log.debug('Starting TLS..')
+            payload = salt.tls_handshake.do_client_handshake(sreq, self.opts)
+            auth['aes'] = payload['aes']
+            auth['publish_port'] = payload['publish_port']
+            return auth
+
         try:
             payload = sreq.send_auto(self.minion_sign_in_payload())
         except SaltReqTimeoutError:
